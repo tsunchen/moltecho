@@ -1,6 +1,6 @@
 # 敏感配置文件 - 禁止提交
 *_credentials.json
-skills/feishu-calendar/config.json
+skills/*/config.json
 .env
 .env.*
 
