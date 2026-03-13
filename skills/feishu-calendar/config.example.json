@@ -1,0 +1,8 @@
+{
+  "app_id": "cli_xxxxxxxxxxxxxxxx",
+  "app_secret": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "calendar_id": "xxx@group.calendar.feishu.cn",
+  "user_open_id": "ou_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "reminder_group": "oc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "reminder_advance": 30
+}
