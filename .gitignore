@@ -1,0 +1,20 @@
+# Credentials and secrets
+*credentials*.json
+*.pem
+*.pem
+*.key
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.swp
+.DS_Store
+
+# Node modules
+node_modules/
+
+# Environment files
+.env
+.env.*
