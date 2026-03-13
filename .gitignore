@@ -1,0 +1,44 @@
+# 敏感配置文件 - 禁止提交
+*_credentials.json
+*_config.json
+.env
+.env.*
+
+# 认证相关
+auth_code*
+token*
+password*
+secret*
+
+# Session 日志（可能包含敏感信息）
+sessions/
+*.jsonl
+
+# 内存/缓存文件
+memory/
+*.cache
+
+# 临时文件
+*.tmp
+*.temp
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+*.so
+.venv/
+venv/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

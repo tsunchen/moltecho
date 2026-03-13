@@ -1,0 +1,224 @@
+#!/usr/bin/env python3
+"""
+Email Sent Folder Summary Tool
+
+Reads emails from the Sent folder and generates summary reports.
+Configured for 163.com mailbox (requires IMAP ID command).
+
+Usage:
+    python summarize_sent.py --days 1
+    python summarize_sent.py --days 7  # Weekly report
+"""
+
+import imaplib
+import email
+from email.header import decode_header
+import json
+import os
+import re
+import argparse
+from datetime import datetime, timedelta, timezone
+
+
+def get_email_content(msg):
+    """Extract plain text content from email message."""
+    content = ""
+    if msg.is_multipart():
+        for part in msg.walk():
+            content_type = part.get_content_type()
+            content_disposition = str(part.get("Content-Disposition"))
+            if content_type == "text/plain" and "attachment" not in content_disposition:
+                try:
+                    payload = part.get_payload(decode=True)
+                    charset = part.get_content_charset()
+                    content += payload.decode(charset if charset else 'utf-8', errors='replace')
+                except:
+                    pass
+            elif content_type == "text/html" and "attachment" not in content_disposition:
+                try:
+                    payload = part.get_payload(decode=True)
+                    charset = part.get_content_charset()
+                    html = payload.decode(charset if charset else 'utf-8', errors='replace')
+                    html = re.sub(r'<(br|p|/p|/div)>', '\n', html, flags=re.IGNORECASE)
+                    content += re.sub('<[^<]+?>', '', html)
+                except:
+                    pass
+    else:
+        try:
+            payload = msg.get_payload(decode=True)
+            charset = msg.get_content_charset()
+            content = payload.decode(charset if charset else 'utf-8', errors='replace')
+        except:
+            pass
+    return content
+
+
+def parse_spoke_line(line):
+    """Parse spoke statistics line."""
+    match = re.search(r'租户:\s*([^,]+),\s*设备:\s*([^,]+),\s*留意:\s*(.+)', line)
+    if match:
+        return {
+            "tenant": match.group(1).strip(),
+            "device": match.group(2).strip(),
+            "details": match.group(3).strip()
+        }
+    return None
+
+
+def extract_granular_spoke_stats(content):
+    """Extract detailed spoke statistics from email content."""
+    detailed_stats = {"special": [], "general": [], "skipped": []}
+    lines = content.split('\n')
+    current_section = None
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        if "--- 特殊spOke统计汇总 ---" in line:
+            current_section = "special"
+            continue
+        elif "--- 一般留意spOke统计汇总 ---" in line:
+            current_section = "general"
+            continue
+        elif "--- 根据 escfaultspecial.json 跳过的spOke ---" in line:
+            current_section = "skipped"
+            continue
+        elif "==================================================" in line:
+            current_section = None
+            continue
+
+        if current_section in ["special", "general"]:
+            parsed = parse_spoke_line(line)
+            if parsed:
+                detailed_stats[current_section].append(parsed)
+        elif current_section == "skipped":
+            m = re.search(r'租户:\s*([^,]+),\s*设备:\s*([^\s(]+)', line)
+            if m:
+                detailed_stats["skipped"].append({
+                    "tenant": m.group(1).strip(),
+                    "device": m.group(2).strip(),
+                    "details": "Skipped"
+                })
+    return detailed_stats
+
+
+def load_config():
+    """Load configuration from environment or config file."""
+    config_path = os.environ.get(
+        'EMAIL_CONFIG_PATH',
+        '/root/.openclaw/workspace/memory/email_credentials.json'
+    )
+    
+    with open(config_path, 'r') as f:
+        return json.load(f)
+
+
+def summarize_sent():
+    """Main function to summarize sent emails."""
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--days", type=int, default=1, help="Number of days to search back (default: 1 = 24 hours)")
+    parser.add_argument("--config", type=str, help="Path to config file (overrides EMAIL_CONFIG_PATH)")
+    args = parser.parse_args()
+
+    # Load configuration
+    if args.config:
+        with open(args.config, 'r') as f:
+            config = json.load(f)
+    else:
+        config = load_config()
+
+    # Get target recipient from environment or config
+    target_recipient = os.environ.get(
+        'TARGET_RECIPIENT',
+        config.get('target_recipient', '')
+    )
+    
+    if not target_recipient:
+        print("Error: No target recipient configured. Set TARGET_RECIPIENT env var or config.")
+        return
+
+    sent_folder = "&XfJT0ZAB-"  # IMAP UTF-7 for "已发送"
+    
+    # Calculate cutoff time
+    cutoff_date = datetime.now(timezone.utc) - timedelta(days=args.days)
+
+    try:
+        # Connect to IMAP server
+        mail = imaplib.IMAP4_SSL(config['imap_server'], config['imap_port'])
+        mail.login(config['email'], config['auth_code'])
+        
+        # Critical: Send ID command for 163.com mailbox
+        imaplib.Commands['ID'] = ('AUTH')
+        mail._simple_command('ID', '("name" "openclaw" "version" "1.0.0")')
+        
+        mail.select(sent_folder)
+        
+        status, messages = mail.search(None, 'ALL')
+        email_ids = messages[0].split()
+        
+        report_data = []
+        # Pull enough emails to cover the time range (batch fetch)
+        scan_limit = 200 if args.days <= 1 else 1000
+        start_idx = len(email_ids) - 1
+        end_idx = max(-1, len(email_ids) - scan_limit - 1)
+        
+        for i in range(start_idx, end_idx, -1):
+            res, msg_data = mail.fetch(email_ids[i], "(BODY[HEADER.FIELDS (TO CC BCC SUBJECT DATE)])")
+            header_msg = email.message_from_bytes(msg_data[0][1])
+            
+            # Check Date first
+            date_raw = header_msg.get("Date")
+            try:
+                msg_date = email.utils.parsedate_to_datetime(date_raw)
+                if msg_date < cutoff_date:
+                    break  # Reached cutoff
+            except:
+                continue
+
+            to_field = str(header_msg.get("To", "")).lower()
+            cc_field = str(header_msg.get("Cc", "")).lower()
+            bcc_field = str(header_msg.get("Bcc", "")).lower()
+            
+            # Check if target recipient is in TO, CC, or BCC
+            if target_recipient.lower() in (to_field + cc_field + bcc_field):
+                res_full, msg_full_data = mail.fetch(email_ids[i], "(RFC822)")
+                msg_full = email.message_from_bytes(msg_full_data[0][1])
+                
+                subject, encoding = decode_header(msg_full["Subject"])[0]
+                if isinstance(subject, bytes):
+                    subject = subject.decode(encoding if encoding else "utf-8", errors='replace')
+                
+                content = get_email_content(msg_full)
+                is_proximity = "Tunnel Effective Proximity" in subject
+                
+                report_data.append({
+                    "date": date_raw,
+                    "subject": subject,
+                    "type": "Proximity" if is_proximity else "Alert",
+                    "granular_spoke_stats": extract_granular_spoke_stats(content) if is_proximity else None,
+                    "critical_alert": " | ".join(
+                        [l.strip() for l in content.split('\n') if "CRITICAL" in l and "<" not in l][:10]
+                    ) if "CRITICAL" in content or "CRITICAL" in subject else None
+                })
+
+        mail.logout()
+        
+        # Output path from environment or default
+        output_path = os.environ.get(
+            'OUTPUT_PATH',
+            '/root/.openclaw/agents/rpctvm/workspace/memory/sent_emails_data.json'
+        )
+        
+        # Ensure output directory exists
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        
+        with open(output_path, 'w') as f:
+            json.dump(report_data, f, indent=2, ensure_ascii=False)
+        print(f"Processed {len(report_data)} emails for last {args.days} day(s).")
+        
+    except Exception as e:
+        print(f"Error: {str(e)}")
+
+
+if __name__ == "__main__":
+    summarize_sent()
