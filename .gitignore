@@ -49,3 +49,6 @@ node_modules/
 # Keys and certificates
 *.pem
 *.key
+
+# Local memory (contains sensitive config)
+MEMORY.md
