@@ -42,3 +42,10 @@ ENV/
 # OS
 .DS_Store
 Thumbs.db
+
+# Node modules
+node_modules/
+
+# Keys and certificates
+*.pem
+*.key
