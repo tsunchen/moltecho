@@ -10,11 +10,14 @@
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
-| `EMAIL_CONFIG_PATH` | 配置文件路径 | `/root/.openclaw/workspace/memory/email_credentials.json` |
+| `EMAIL_CONFIG_PATH` | 邮箱配置文件路径 | `/root/.openclaw/workspace/memory/email_credentials.json` |
+| `BITABLE_CONFIG_PATH` | 多维表格配置文件路径 | `/root/.openclaw/workspace/memory/rpctvm_bitable.json` |
 | `TARGET_RECIPIENT` | 目标收件人邮箱 | 从配置文件读取 |
 | `NOTIFICATION_CHAT_ID` | 推送群 ID | 从配置文件读取 |
 
 ### 配置文件格式
+
+#### 邮箱配置 (email_credentials.json)
 
 ```json
 {
@@ -27,7 +30,16 @@
 }
 ```
 
-**注意**: 配置文件应存储在安全目录，禁止提交到 Git。
+#### 多维表格配置 (rpctvm_bitable.json)
+
+```json
+{
+  "app_token": "your-bitable-app-token",
+  "table_id": "your-table-id"
+}
+```
+
+**注意**: 所有配置文件应存储在安全目录（如 `~/.openclaw/workspace/memory/`），并已添加到 `.gitignore`。
 
 ## 163邮箱IMAP安全检查（关键）
 
@@ -96,34 +108,43 @@ python summarize_sent.py --days 7
 
 ## 多维表格同步（每日汇总）
 
-### 表格配置
+### 配置读取
 
-| 项目 | 值 |
-|------|------|
-| 表格名称 | rpctvm日报记录_每日汇总 |
-| app_token | `KMuSbNqaFaWDMEsDdt3cu4Yen41` |
-| table_id | `tbldrD3fewjKJ6qI` |
-| 链接 | https://scn4g7d1hhzh.feishu.cn/base/KMuSbNqaFaWDMEsDdt3cu4Yen41 |
+多维表格的 `app_token` 和 `table_id` 从配置文件读取：
+
+```python
+import os
+import json
+
+config_path = os.environ.get('BITABLE_CONFIG_PATH', 
+                              '/root/.openclaw/workspace/memory/rpctvm_bitable.json')
+with open(config_path, 'r') as f:
+    config = json.load(f)
+
+app_token = config['app_token']
+table_id = config['table_id']
+```
 
 ### 字段结构
 
-| 字段名 | 字段ID | 类型 | 说明 |
-|--------|--------|------|------|
-| 日期 | fldPjdZdYn | DateTime | 当天日期（时间戳毫秒） |
-| 租户 | fld655kae9 | Text | 租户名称（默认：浦发） |
-| 邮件数 | fldS7aEHIl | Number | 当天邮件数量 |
-| 特殊设备数 | fldNB30OrH | Number | special 类型设备数量 |
-| 一般关注设备数 | fldDWG1yJn | Number | general 类型设备数量 |
-| 设备详情 | fldImzJFEY | Text | 设备名称及问题（去重合并） |
+| 字段名 | 类型 | 说明 |
+|--------|------|------|
+| 日期 | DateTime | 当天日期（时间戳毫秒） |
+| 租户 | Text | 租户名称（默认：浦发） |
+| 邮件数 | Number | 当天邮件数量 |
+| 特殊设备数 | Number | special 类型设备数量 |
+| 一般关注设备数 | Number | general 类型设备数量 |
+| 设备详情 | Text | 设备名称及问题（去重合并） |
 
 ### 写入流程
 
 日报任务在推送群消息后，执行以下步骤：
 
-1. **解析数据**: 从 `sent_emails_data.json` 读取邮件数据
-2. **按日期合并**: 同一天的多封邮件合并为一行
-3. **去重统计**: 设备按名称去重，保留最新问题描述
-4. **写入表格**: 使用 `feishu_bitable_create_record` 写入
+1. **读取配置**: 从配置文件获取 `app_token` 和 `table_id`
+2. **解析数据**: 从 `sent_emails_data.json` 读取邮件数据
+3. **按日期合并**: 同一天的多封邮件合并为一行
+4. **去重统计**: 设备按名称去重，保留最新问题描述
+5. **写入表格**: 使用 `feishu_bitable_create_record` 写入
 
 ### 数据格式
 
@@ -162,23 +183,6 @@ for email in emails:
         daily_data[date_key]["general_devices"][dev["device"]] = dev["details"]
 ```
 
-### 写入示例
-
-```json
-{
-  "app_token": "KMuSbNqaFaWDMEsDdt3cu4Yen41",
-  "table_id": "tbldrD3fewjKJ6qI",
-  "fields": {
-    "日期": 1773312304000,
-    "租户": "浦发",
-    "邮件数": 1,
-    "特殊设备数": 0,
-    "一般关注设备数": 2,
-    "设备详情": "PuFaJiTuan-050100-04 (Wan2 能见度80%), PuFaJiTuan-060200-01 (Wan2 能见度80%)"
-  }
-}
-```
-
 ### 设备详情格式
 
 - **一般设备**: `设备名 (问题详情)`
@@ -209,6 +213,7 @@ timestamp_ms = int(dt.timestamp() * 1000)
 - **禁止读取** 收件箱、删除邮件、修改设置
 - **禁止发送邮件**
 - **授权码** 应通过环境变量或加密配置文件管理，**禁止硬编码**
+- **Token** 应通过配置文件管理，**禁止提交到 Git**
 
 ## 定时任务
 

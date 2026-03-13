@@ -21,18 +21,9 @@ description: |
 | `FEISHU_REMINDER_GROUP` | 提醒群 ID |
 | `FEISHU_REMINDER_ADVANCE` | 提前提醒时间（分钟），默认 30 |
 
-### 配置文件示例
+### 配置文件
 
-```json
-{
-  "app_id": "cli_xxx",
-  "app_secret": "xxx",
-  "calendar_id": "xxx@group.calendar.feishu.cn",
-  "user_open_id": "ou_xxx",
-  "reminder_group": "oc_xxx",
-  "reminder_advance": 30
-}
-```
+配置文件路径: `~/.openclaw/workspace/skills/feishu-calendar/config.json`
 
 **注意**: 配置文件应存储在安全目录，禁止提交到 Git。
 
@@ -160,7 +151,7 @@ date -d @1773194400 '+%Y-%m-%d %H:%M %Z'
 ### 提醒推送
 
 - **推送群**: 从配置文件读取
-- **推送格式**: 
+- **推送格式**:
   ```
   📅 【日程提醒】{事件名称}
   ⏰ 开始时间：{HH:MM}
@@ -183,7 +174,7 @@ EVENTS=$(curl -s "https://open.feishu.cn/open-apis/calendar/v4/calendars/$CALEND
 for event in $EVENTS; do
   START=$(echo $event | jq -r '.start_time.timestamp')
   DIFF=$(( (START - NOW) / 60 ))  # 分钟差
-  
+
   if [ $DIFF -gt 0 ] && [ $DIFF -le 30 ]; then
     # 推送提醒
     SUMMARY=$(echo $event | jq -r '.summary')
