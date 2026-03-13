@@ -1,0 +1,6 @@
+{
+  "work_dir": "C:\\path\\to\\Reportwork",
+  "wan_intf_dir": "C:\\path\\to\\Reportwork\\shct\\pfjt\\monthrear\\data\\wan_intf",
+  "uv_path": "C:\\Users\\<user>\\.local\\bin\\uv.exe",
+  "node_name": "YOUR_NODE_NAME"
+}
