@@ -12,6 +12,7 @@
 |------|------|--------|
 | `EMAIL_CONFIG_PATH` | 邮箱配置文件路径 | `/root/.openclaw/workspace/memory/email_credentials.json` |
 | `BITABLE_CONFIG_PATH` | 多维表格配置文件路径 | `/root/.openclaw/workspace/memory/rpctvm_bitable.json` |
+| `TARGETS_CONFIG_PATH` | 推送目标配置文件路径 | `/root/.openclaw/workspace/memory/rpctvm_targets.json` |
 | `TARGET_RECIPIENT` | 目标收件人邮箱 | 从配置文件读取 |
 | `NOTIFICATION_CHAT_ID` | 推送群 ID | 从配置文件读取 |
 
@@ -25,8 +26,7 @@
   "imap_server": "imap.example.com",
   "imap_port": 993,
   "auth_code": "your-auth-code",
-  "target_recipient": "recipient@example.com",
-  "notification_chat_id": "oc_xxx"
+  "target_recipient": "recipient@example.com"
 }
 ```
 
@@ -36,6 +36,15 @@
 {
   "app_token": "your-bitable-app-token",
   "table_id": "your-table-id"
+}
+```
+
+#### 推送目标配置 (rpctvm_targets.json)
+
+```json
+{
+  "group_chat_id": "your-group-chat-id",
+  "user_open_id": "your-user-open-id"
 }
 ```
 
@@ -222,11 +231,35 @@ timestamp_ms = int(dt.timestamp() * 1000)
 | 日报 | 周一至周六 8:30 | `fbbd8ccd-1184-4725-b1a1-74d9f4a20e32` |
 | 周报 | 周日 12:00 | `77445691-4e3c-433c-af6b-3c06995650a7` |
 
-日报任务流程：
+### 推送目标
+
+| 消息类型 | 目标 | 配置字段 | 用途 |
+|----------|------|----------|------|
+| **文字报告** | 群聊 | `group_chat_id` | 备用查看 |
+| **语音播报** | 私聊 | `user_open_id` | 主要播报，点击播放 |
+
+推送目标 ID 从配置文件读取：
+
+```python
+import os
+import json
+
+config_path = os.environ.get('TARGETS_CONFIG_PATH',
+                              '/root/.openclaw/workspace/memory/rpctvm_targets.json')
+with open(config_path, 'r') as f:
+    config = json.load(f)
+
+group_chat_id = config['group_chat_id']
+user_open_id = config['user_open_id']
+```
+
+### 日报任务流程
+
 1. 获取邮件数据 (`--days 1`)
 2. 解析并生成汇总报告
-3. 推送群消息
-4. 写入多维表格（每天一行）
+3. **推送文字报告** → 群聊（备用）
+4. **推送语音播报** → 私聊（主要）
+5. 写入多维表格（每天一行）
 
 ## 相关文档
 
