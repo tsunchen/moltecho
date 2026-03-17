@@ -228,7 +228,7 @@ timestamp_ms = int(dt.timestamp() * 1000)
 
 | 任务 | 时间 | Cron ID |
 |------|------|---------|
-| 日报 | 周一至周六 8:30 | `fbbd8ccd-1184-4725-b1a1-74d9f4a20e32` |
+| 日报 | 周一至周六 9:30 (北京时间) | `6aa30983-efb0-4275-98b4-8048dedbbe0e` |
 | 周报 | 周日 12:00 | `77445691-4e3c-433c-af6b-3c06995650a7` |
 
 ### 推送目标
@@ -324,6 +324,34 @@ Tower 任务配置存储在 `/root/.openclaw/workspace/memory/rpctvm_tower.json`
 
 - 需要通过飞书扫码授权
 - Win10-Node Edge 浏览器需要单独授权
+
+### 浏览器配置
+
+rpctvm Agent 使用 Win10-Node Edge 浏览器提交 Tower 评论：
+
+| 配置项 | 值 |
+|--------|------|
+| 浏览器 | Microsoft Edge (Chromium) |
+| Profile | openclaw |
+| CDP 端口 | 18800 |
+| 数据目录 | `C:\Users\moltsunx\.openclaw\browser\openclaw\user-data` |
+
+### Tower 评论提交流程
+
+1. **检查浏览器状态**: 确保 Edge 浏览器已启动并连接 CDP 端口 18800
+2. **打开 Tower 任务页面**: `https://tower.im/teams/933121/todos/2343`
+3. **等待页面加载**: 确保评论区可见
+4. **点击评论输入框**: 找到富文本编辑器并激活
+5. **输入评论内容**: 使用 `browser act type` 输入评论
+6. **点击发表评论按钮**: 提交评论
+7. **关闭标签页**: 清理浏览器资源
+
+### 错误处理
+
+如果 Tower 评论失败：
+1. 检查浏览器是否有 Tower 页面标签
+2. 检查是否需要重新登录 Tower
+3. 记录错误日志并通知管理员
 
 ---
 

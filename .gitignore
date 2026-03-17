@@ -54,3 +54,10 @@ node_modules/
 MEMORY.md
 AGENTS.md
 USER.md
+
+# Scripts with hardcoded credentials
+scripts/calendar-reminder.sh
+
+# Test scripts
+test_email.py
+get_sent_emails.py
