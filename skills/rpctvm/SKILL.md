@@ -338,13 +338,17 @@ rpctvm Agent 使用 Win10-Node Edge 浏览器提交 Tower 评论：
 
 ### Tower 评论提交流程
 
+**⚠️ 必须使用 Win10-Node 的正确节点名: `DESKTOP-58PJJ39`**
+
 1. **检查浏览器状态**: 确保 Edge 浏览器已启动并连接 CDP 端口 18800
-2. **打开 Tower 任务页面**: `https://tower.im/teams/933121/todos/2343`
+2. **打开 Tower 任务页面**: 使用 `browser open node=DESKTOP-58PJJ39 profile=openclaw url=https://tower.im/teams/933121/todos/2343`
 3. **等待页面加载**: 确保评论区可见
 4. **点击评论输入框**: 找到富文本编辑器并激活
-5. **输入评论内容**: 使用 `browser act type` 输入评论
+5. **输入评论内容**: 使用 `browser act kind=type node=DESKTOP-58PJJ39` 输入评论
 6. **点击发表评论按钮**: 提交评论
 7. **关闭标签页**: 清理浏览器资源
+
+**关键**: 所有 browser 操作必须指定 `node=DESKTOP-58PJJ39`，不要使用旧的 "Win10-Node"！
 
 ### 错误处理
 
