@@ -35,7 +35,9 @@
 ```json
 {
   "app_token": "your-bitable-app-token",
-  "table_id": "your-table-id"
+  "table_id": "your-table-id",
+  "name": "表格名称",
+  "url": "表格链接"
 }
 ```
 
@@ -45,6 +47,15 @@
 {
   "group_chat_id": "your-group-chat-id",
   "user_open_id": "your-user-open-id"
+}
+```
+
+#### Tower 配置 (rpctvm_tower.json)
+
+```json
+{
+  "task_url": "https://tower.im/teams/YOUR_TEAM/todos/YOUR_TODO",
+  "node_name": "YOUR_NODE_NAME"
 }
 ```
 
@@ -155,6 +166,16 @@ table_id = config['table_id']
 4. **去重统计**: 设备按名称去重，保留最新问题描述
 5. **写入表格**: 使用 `feishu_bitable_create_record` 写入
 
+### 周报任务写入顺序
+
+**⚠️ 重要**：周报任务按日期降序写入（最新日期在前）
+
+1. 获取最近7天的邮件数据
+2. 按日期降序排列（最新在前）
+3. 检查多维表格中已存在的日期
+4. 仅写入新日期（按降序写入）
+5. **不推送消息** - 周报仅更新表格
+
 ### 数据格式
 
 从 `sent_emails_data.json` 提取：
@@ -226,10 +247,10 @@ timestamp_ms = int(dt.timestamp() * 1000)
 
 ## 定时任务
 
-| 任务 | 时间 | Cron ID |
-|------|------|---------|
-| 日报 | 周一至周六 9:30 (北京时间) | `6aa30983-efb0-4275-98b4-8048dedbbe0e` |
-| 周报 | 周日 12:00 | `77445691-4e3c-433c-af6b-3c06995650a7` |
+| 任务 | 时间 | Cron ID | 说明 |
+|------|------|---------|------|
+| 日报 | 周一至周六 9:30 (北京时间) | `6aa30983-efb0-4275-98b4-8048dedbbe0e` | 推送群消息+语音+更新表格 |
+| 周报 | 周日 12:00 | `77445691-4e3c-433c-af6b-3c06995650a7` | **仅更新表格，不推送消息** |
 
 ### 推送目标
 
@@ -486,28 +507,28 @@ YYYY年MM月DD日巡检完成。{租户}租户{报告类型}报告。{失联/特
 
 ### 浏览器配置
 
-rpctvm Agent 使用 Win10-Node Edge 浏览器提交 Tower 评论：
+rpctvm Agent 使用远程节点 Edge 浏览器提交 Tower 评论：
 
 | 配置项 | 值 |
 |--------|------|
 | 浏览器 | Microsoft Edge (Chromium) |
 | Profile | openclaw |
 | CDP 端口 | 18800 |
-| 数据目录 | `C:\Users\moltsunx\.openclaw\browser\openclaw\user-data` |
+| 数据目录 | 从环境变量或配置文件读取 |
 
 ### Tower 评论提交流程
 
-**⚠️ 必须使用 Win10-Node 的正确节点名: `DESKTOP-58PJJ39`**
+**⚠️ 节点名从配置文件读取**
 
-1. **检查浏览器状态**: 确保 Edge 浏览器已启动并连接 CDP 端口 18800
-2. **打开 Tower 任务页面**: 使用 `browser open node=DESKTOP-58PJJ39 profile=openclaw url=https://tower.im/teams/933121/todos/2343`
+1. **检查浏览器状态**: 确保 Edge 浏览器已启动并连接 CDP 端口
+2. **打开 Tower 任务页面**: URL 从配置文件读取
 3. **等待页面加载**: 确保评论区可见
 4. **点击评论输入框**: 找到富文本编辑器并激活
-5. **输入评论内容**: 使用 `browser act kind=type node=DESKTOP-58PJJ39` 输入评论
+5. **输入评论内容**: 使用 browser act 输入评论
 6. **点击发表评论按钮**: 提交评论
 7. **关闭标签页**: 清理浏览器资源
 
-**关键**: 所有 browser 操作必须指定 `node=DESKTOP-58PJJ39`，不要使用旧的 "Win10-Node"！
+**关键**: 所有 browser 操作的节点名和 URL 从配置文件读取，不要硬编码！
 
 ### 错误处理
 
