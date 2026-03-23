@@ -229,6 +229,67 @@ curl -s -X PATCH "https://open.feishu.cn/open-apis/calendar/v4/calendars/$CALEND
   - 原位置新建：`浦汇智途（分期）` (03-11 11:00-12:00)
   - 原事件移动到：03-12 11:00-12:00
 
+## 任务完成确认检查
+
+### 触发条件
+
+- **触发时间**: 日程结束时间 + 2小时
+- **检查频率**: 每次心跳轮询时检查
+- **目的**: 主动确认用户是否完成任务
+
+### 检查逻辑
+
+```python
+# 心跳检查流程
+for event in today_events:
+    end_time = event['end_time']['timestamp']
+    event_id = event['event_id']
+    summary = event['summary']
+    
+    # 判断是否需要询问
+    now = current_timestamp()
+    time_after_end = now - end_time  # 距结束的时间（秒）
+    
+    # 条件：结束2小时后 且 未询问过 且 未标记完成
+    if (time_after_end >= 7200 and  # 2小时 = 7200秒
+        event_id not in asked_list and
+        "已完成" not in summary):
+        
+        # 推送询问
+        send_message(
+            group=reminder_group,
+            text=f"📋 【任务确认】{summary} 已于 {end_time_str} 结束，请问任务是否完成？"
+        )
+        
+        # 记录已询问
+        asked_list.append(event_id)
+```
+
+### 示例
+
+| 日程 | 结束时间 | 询问时间 |
+|------|----------|----------|
+| 会议 13:00-14:00 | 14:00 | 16:00 |
+| 任务 10:00-11:30 | 11:30 | 13:30 |
+
+### 记录存储
+
+在 `memory/heartbeat-reminders.json` 中记录：
+```json
+{
+  "taskCompletionAsked": ["event_id_1", "event_id_2"]
+}
+```
+
+### 用户回复处理
+
+当用户回复"已完成"时：
+- 更新事件名称添加"（已完成）"
+- 从 `taskCompletionAsked` 中移除（可选）
+
+当用户回复"未完成"或"分期"时：
+- 按照未完成流程处理（创建分期事件，移动原事件）
+
 ## 注意事项
 
 1. **时间戳是 UTC 时间**，北京时间需要减8小时
