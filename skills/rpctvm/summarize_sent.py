@@ -102,6 +102,46 @@ def extract_granular_spoke_stats(content):
     return detailed_stats
 
 
+def extract_alert_info(content):
+    """Extract device info from Alert emails (CRITICAL alerts with UNREACHABLE status).
+    
+    Returns dict with:
+    - devices: list of unreachable/offline devices
+    - has_unreachable: bool indicating if any device is unreachable
+    """
+    # Clean HTML tags
+    text = re.sub(r'<[^>]+>', ' ', content)
+    text = re.sub(r'\s+', ' ', text).strip()
+    
+    devices = []
+    
+    # Extract device name from "Device : xxx" pattern
+    device_match = re.search(r'Device\s*:\s*([^\s<]+)', text)
+    tenant_match = re.search(r'Tenant\s*:\s*([^\s<]+)', text)
+    desc_match = re.search(r'Descriptions?\s*:\s*([^\n<]+)', text)
+    
+    if device_match:
+        device_name = device_match.group(1).strip()
+        tenant = tenant_match.group(1).strip() if tenant_match else "Unknown"
+        description = desc_match.group(1).strip() if desc_match else ""
+        
+        # Check for UNREACHABLE/offline status
+        is_unreachable = 'UNREACHABLE' in text.upper() or '失联' in text or 'offline' in text.lower()
+        status = "失联" if is_unreachable else "告警"
+        
+        devices.append({
+            "device": device_name,
+            "tenant": tenant,
+            "details": description if description else status,
+            "status": "unreachable" if is_unreachable else "alert"
+        })
+    
+    return {
+        "devices": devices,
+        "has_unreachable": any(d["status"] == "unreachable" for d in devices)
+    }
+
+
 def load_config():
     """Load configuration from environment or config file."""
     config_path = os.environ.get(
@@ -190,16 +230,28 @@ def summarize_sent():
                 
                 content = get_email_content(msg_full)
                 is_proximity = "Tunnel Effective Proximity" in subject
+                is_alert = "CRITICAL" in subject.upper() or "CRITICAL" in content.upper()
                 
-                report_data.append({
-                    "date": date_raw,
-                    "subject": subject,
-                    "type": "Proximity" if is_proximity else "Alert",
-                    "granular_spoke_stats": extract_granular_spoke_stats(content) if is_proximity else None,
-                    "critical_alert": " | ".join(
-                        [l.strip() for l in content.split('\n') if "CRITICAL" in l and "<" not in l][:10]
-                    ) if "CRITICAL" in content or "CRITICAL" in subject else None
-                })
+                if is_proximity:
+                    stats = extract_granular_spoke_stats(content)
+                    report_data.append({
+                        "date": date_raw,
+                        "subject": subject,
+                        "type": "Proximity",
+                        "granular_spoke_stats": stats,
+                        "critical_alert": None
+                    })
+                elif is_alert:
+                    # Extract device info from Alert emails
+                    alert_info = extract_alert_info(content)
+                    report_data.append({
+                        "date": date_raw,
+                        "subject": subject,
+                        "type": "Alert",
+                        "granular_spoke_stats": None,
+                        "alert_devices": alert_info["devices"],
+                        "has_unreachable": alert_info["has_unreachable"]
+                    })
 
         mail.logout()
         

@@ -180,6 +180,7 @@ table_id = config['table_id']
 
 从 `sent_emails_data.json` 提取：
 
+**Proximity 类型邮件**：
 ```json
 {
   "date": "Fri, 13 Mar 2026 08:05:04 +0800 (CST)",
@@ -192,6 +193,28 @@ table_id = config['table_id']
 }
 ```
 
+**Alert 类型邮件（CRITICAL 告警）**：
+```json
+{
+  "date": "Tue, 24 Mar 2026 08:03:15 +0800",
+  "type": "Alert",
+  "alert_devices": [
+    {
+      "device": "PuFaJiTuan-040200-01",
+      "tenant": "Customer-PuFaJiTuan",
+      "details": "UNREACHABLE ( No Loading Any Uplink ... )",
+      "status": "unreachable"
+    }
+  ],
+  "has_unreachable": true
+}
+```
+
+**Alert 邮件解析**：
+- 从邮件 HTML 内容提取 `Device:`、`Descriptions:`、`Tenant:` 字段
+- 检测 `UNREACHABLE`、`offline`、`失联` 关键词标记为失联设备
+- 失联设备在日报中排在最前面（优先级最高）
+
 ### 合并逻辑
 
 ```python
@@ -202,27 +225,41 @@ for email in emails:
     if date_key not in daily_data:
         daily_data[date_key] = {
             "count": 0,
-            "special_devices": {},  # 去重
-            "general_devices": {}   # 去重
+            "unreachable_devices": {},  # 失联设备（优先级最高）
+            "special_devices": {},      # 特殊设备
+            "general_devices": {}       # 一般设备
         }
     daily_data[date_key]["count"] += 1
-    # 合并设备，去重保留最新详情
-    for dev in email["granular_spoke_stats"]["special"]:
-        daily_data[date_key]["special_devices"][dev["device"]] = dev["details"]
-    for dev in email["granular_spoke_stats"]["general"]:
-        daily_data[date_key]["general_devices"][dev["device"]] = dev["details"]
+    
+    # 处理 Proximity 邮件
+    if email["type"] == "Proximity" and email.get("granular_spoke_stats"):
+        for dev in email["granular_spoke_stats"]["special"]:
+            daily_data[date_key]["special_devices"][dev["device"]] = dev["details"]
+        for dev in email["granular_spoke_stats"]["general"]:
+            daily_data[date_key]["general_devices"][dev["device"]] = dev["details"]
+    
+    # 处理 Alert 邮件（失联设备）
+    elif email["type"] == "Alert" and email.get("alert_devices"):
+        for dev in email["alert_devices"]:
+            if dev["status"] == "unreachable":
+                daily_data[date_key]["unreachable_devices"][dev["device"]] = dev["details"]
 ```
 
 ### 设备详情格式
 
-- **一般设备**: `设备名 (问题详情)`
-- **特殊设备**: `[特殊] 设备名 (问题详情)`
+- **失联设备**: `🔴 设备名 (UNREACHABLE/失联)` - 最高优先级
+- **特殊设备**: `🟠 设备名 (问题详情)` - 双链路告警等
+- **一般设备**: `🟡 设备名 (问题详情)` - Wan2能见度下降等
 - 多个设备用 `, ` 分隔
 
 示例：
 ```
-[特殊] PuFaJiTuan-010000-01 (Wan2 Wan2), PuFaJiTuan-040100-01 (Wan2 能见度80%)
+🔴 PuFaJiTuan-040200-01 (UNREACHABLE)
+🟠 PuFaJiTuan-030000-01 (Wan1 双链路告警)
+🟡 PuFaJiTuan-100200-01 (Wan2 能见度80%)
 ```
+
+**排序优先级**：失联设备 > 特殊设备 > 一般设备
 
 ### 时间戳转换
 
