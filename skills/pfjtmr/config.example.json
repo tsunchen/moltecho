@@ -1,6 +1,11 @@
 {
   "work_dir": "C:\\path\\to\\Reportwork",
   "wan_intf_dir": "C:\\path\\to\\Reportwork\\shct\\pfjt\\monthrear\\data\\wan_intf",
+  "result_dir": "C:\\path\\to\\Reportwork\\shct\\pfjt\\monthrear\\result",
   "uv_path": "C:\\Users\\<user>\\.local\\bin\\uv.exe",
-  "node_name": "YOUR_NODE_NAME"
+  "python_venv": "C:\\path\\to\\Reportwork\\.venv\\Scripts\\python.exe",
+  "node_name": "YOUR_NODE_NAME",
+  "pdf_pattern": "Versa-Analytics-Sites-usage-Report-YYYYMMDD-YYYYMMDD.pdf",
+  "output_csv_pattern": "outtab-YYYYMMDD-YYYYMMDD.csv",
+  "output_docx_pattern": "Selected_Columns_YYYYMMDD-YYYYMMDD.docx"
 }
