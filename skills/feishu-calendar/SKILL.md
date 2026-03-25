@@ -116,6 +116,8 @@ date -d @1773194400 '+%Y-%m-%d %H:%M %Z'
 
 用户说: "周三10点开会"
 
+**注意**: 新事件默认添加 `⏸️` 前缀，如 `⏸️开会`
+
 1. 计算时间戳:
    - 周三 10:00 CN = 周三 02:00 UTC
    - 开始: 1773194400
@@ -183,51 +185,55 @@ for event in $EVENTS; do
 done
 ```
 
-## 日程状态处理规则
+## 日程状态标签规则
+
+### 状态标签
+
+| 标签 | 含义 | 示例 |
+|------|------|------|
+| ⏸️ | 待处理/新事件 | ⏸️上海_IDC |
+| ✅ | 已完成 | ✅华侨_深圳 |
+| ⚠️ | 未完成/需改期 | ⚠️浦汇智途 |
+
+### 创建新事件
+
+新增日历事件时，默认在名称前添加 `⏸️` 前缀：
+
+```bash
+curl -s -X POST "https://open.feishu.cn/open-apis/calendar/v4/calendars/$CALENDAR_ID/events" \
+  -H "Authorization: Bearer $TENANT_TOKEN" \
+  -d '{"summary": "⏸️事件名称", ...}'
+```
+
+**示例**：用户说"新增上海_IDC事件" → 创建 `⏸️上海_IDC`
 
 ### ✅ 已完成
 
-当用户确认日程完成时，更新事件名称添加标记：
+当用户确认日程完成时，更新事件名称添加 ✅ 前缀：
 
 ```bash
-# 更新事件名称
+# 更新事件名称（添加 ✅ 前缀）
 curl -s -X PATCH "https://open.feishu.cn/open-apis/calendar/v4/calendars/$CALENDAR_ID/events/$EVENT_ID" \
   -H "Authorization: Bearer $TENANT_TOKEN" \
-  -d '{"summary": "事件名称（已完成）"}'
+  -d '{"summary": "✅事件名称"}'
 ```
 
-### ⏳ 未完成（分期）
+**格式规范**：`事件名` → `✅事件名`（在名称前添加 ✅ emoji）
 
-当用户确认日程未完成时，执行两步操作：
+### ⚠️ 未完成（改期）
 
-1. **原位置创建分期事件**：
-   ```bash
-   # 创建新事件，名称为"原事件名（分期）"
-   curl -s -X POST "https://open.feishu.cn/open-apis/calendar/v4/calendars/$CALENDAR_ID/events" \
-     -H "Authorization: Bearer $TENANT_TOKEN" \
-     -d '{
-       "summary": "原事件名（分期）",
-       "start_time": { "timestamp": 原开始时间 },
-       "end_time": { "timestamp": 原结束时间 }
-     }'
-   ```
+当用户确认日程未完成需要改期时，更新原事件名称添加 ⚠️ 前缀：
 
-2. **移动原事件到新日期**：
-   ```bash
-   # 更新原事件的时间
-   curl -s -X PATCH "https://open.feishu.cn/open-apis/calendar/v4/calendars/$CALENDAR_ID/events/$EVENT_ID" \
-     -H "Authorization: Bearer $TENANT_TOKEN" \
-     -d '{
-       "start_time": { "timestamp": 新开始时间 },
-       "end_time": { "timestamp": 新结束时间 }
-     }'
-   ```
+```bash
+# 更新事件名称（添加 ⚠️ 前缀）
+curl -s -X PATCH "https://open.feishu.cn/open-apis/calendar/v4/calendars/$CALENDAR_ID/events/$EVENT_ID" \
+  -H "Authorization: Bearer $TENANT_TOKEN" \
+  -d '{"summary": "⚠️原事件名"}'
+```
 
 **示例**：
-- 原事件：`浦汇智途` (03-11 11:00-12:00)
-- 未完成处理：
-  - 原位置新建：`浦汇智途（分期）` (03-11 11:00-12:00)
-  - 原事件移动到：03-12 11:00-12:00
+- 原事件：`⏸️浦汇智途` (03-11 11:00-12:00)
+- 未完成处理：`⚠️浦汇智途`（用户可后续改期或继续跟踪）
 
 ## 任务完成确认检查
 
@@ -253,7 +259,7 @@ for event in today_events:
     # 条件：结束2小时后 且 未询问过 且 未标记完成
     if (time_after_end >= 7200 and  # 2小时 = 7200秒
         event_id not in asked_list and
-        "已完成" not in summary):
+        "✅" not in summary):
         
         # 推送询问
         send_message(
@@ -284,11 +290,12 @@ for event in today_events:
 ### 用户回复处理
 
 当用户回复"已完成"时：
-- 更新事件名称添加"（已完成）"
+- 更新事件名称添加 `✅` 前缀：`⏸️事件名` → `✅事件名`
 - 从 `taskCompletionAsked` 中移除（可选）
 
-当用户回复"未完成"或"分期"时：
-- 按照未完成流程处理（创建分期事件，移动原事件）
+当用户回复"未完成"或"需改期"时：
+- 更新事件名称添加 `⚠️` 前缀：`⏸️事件名` → `⚠️事件名`
+- 用户可后续手动改期或继续跟踪
 
 ## 注意事项
 
