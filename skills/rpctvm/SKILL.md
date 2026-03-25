@@ -10,9 +10,10 @@
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
-| `EMAIL_CONFIG_PATH` | 邮箱配置文件路径 | `/root/.openclaw/workspace/memory/email_credentials.json` |
-| `BITABLE_CONFIG_PATH` | 多维表格配置文件路径 | `/root/.openclaw/workspace/memory/rpctvm_bitable.json` |
-| `TARGETS_CONFIG_PATH` | 推送目标配置文件路径 | `/root/.openclaw/workspace/memory/rpctvm_targets.json` |
+| `EMAIL_CONFIG_PATH` | 邮箱配置文件路径 | `/root/.openclaw/agents/vegetablesoup/workspace/memory/email_credentials.json` |
+| `BITABLE_CONFIG_PATH` | 多维表格配置文件路径 | `/root/.openclaw/agents/vegetablesoup/workspace/memory/rpctvm_bitable.json` |
+| `TARGETS_CONFIG_PATH` | 推送目标配置文件路径 | `/root/.openclaw/agents/vegetablesoup/workspace/memory/rpctvm_targets.json` |
+| `OUTPUT_PATH` | 邮件数据输出路径 | `/root/.openclaw/agents/vegetablesoup/workspace/memory/sent_emails_data.json` |
 | `TARGET_RECIPIENT` | 目标收件人邮箱 | 从配置文件读取 |
 | `NOTIFICATION_CHAT_ID` | 推送群 ID | 从配置文件读取 |
 

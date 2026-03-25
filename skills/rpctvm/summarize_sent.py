@@ -179,8 +179,9 @@ def summarize_sent():
 
     sent_folder = "&XfJT0ZAB-"  # IMAP UTF-7 for "已发送"
     
-    # Calculate cutoff time
-    cutoff_date = datetime.now(timezone.utc) - timedelta(days=args.days)
+    # Calculate cutoff time (北京时间 Asia/Shanghai)
+    cst = timezone(timedelta(hours=8))
+    cutoff_date = datetime.now(cst) - timedelta(days=args.days)
 
     try:
         # Connect to IMAP server
@@ -193,7 +194,10 @@ def summarize_sent():
         
         mail.select(sent_folder)
         
-        status, messages = mail.search(None, 'ALL')
+        # Use SINCE filter to limit search range (avoids timeout on large mailboxes)
+        # 163邮箱按本地时间处理，日期应为北京时间
+        since_date = (datetime.now(cst) - timedelta(days=args.days)).strftime('%d-%b-%Y')
+        status, messages = mail.search(None, f'SINCE {since_date}')
         email_ids = messages[0].split()
         
         report_data = []
@@ -258,7 +262,7 @@ def summarize_sent():
         # Output path from environment or default
         output_path = os.environ.get(
             'OUTPUT_PATH',
-            '/root/.openclaw/agents/rpctvm/workspace/memory/sent_emails_data.json'
+            '/root/.openclaw/agents/vegetablesoup/workspace/memory/sent_emails_data.json'
         )
         
         # Ensure output directory exists
