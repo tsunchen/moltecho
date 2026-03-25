@@ -64,9 +64,11 @@ def main():
     else:
         raise ValueError("Must provide either --message or --file")
 
-    # Get credentials from environment or config
-    app_id = os.environ.get("FEISHU_APP_ID", "cli_a90466cb86f85bc8")
-    app_secret = os.environ.get("FEISHU_APP_SECRET", "FyQykHiyanqeZqhLM51s7fbl44R3kzrx")
+    # Get credentials from environment variables
+    app_id = os.environ.get("FEISHU_APP_ID")
+    app_secret = os.environ.get("FEISHU_APP_SECRET")
+    if not app_id or not app_secret:
+        raise ValueError("FEISHU_APP_ID and FEISHU_APP_SECRET environment variables must be set")
 
     # Get token and send
     token = get_tenant_access_token(app_id, app_secret)
