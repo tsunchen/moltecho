@@ -476,7 +476,7 @@ Tower 任务配置存储在 `/root/.openclaw/workspace/memory/rpctvm_tower.json`
 
 ### 📝 格式二：Tower 评论区
 
-**✓ 支持 emoji**: Tower 富文本编辑器支持 emoji 符号，可使用 📊 🔴 🟠 🟡 ✅ 等图标增强可读性
+**⚠️ 注意**: Tower 富文本编辑器**不支持 emoji**！必须使用纯文本格式！
 
 **格式模板**：
 ```
