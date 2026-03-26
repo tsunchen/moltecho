@@ -184,8 +184,8 @@ def summarize_sent():
     cutoff_date = datetime.now(cst) - timedelta(days=args.days)
 
     try:
-        # Connect to IMAP server
-        mail = imaplib.IMAP4_SSL(config['imap_server'], config['imap_port'])
+        # Connect to IMAP server (port 143 plain; 993/SSL may be blocked)
+        mail = imaplib.IMAP4(config['imap_server'], config.get('imap_port', 143))
         mail.login(config['email'], config['auth_code'])
         
         # Critical: Send ID command for 163.com mailbox
