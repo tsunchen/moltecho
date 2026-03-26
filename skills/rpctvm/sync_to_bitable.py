@@ -155,14 +155,14 @@ def main():
     app_token = bitable_config["app_token"]
     table_id = bitable_config["table_id"]
 
-    app_id = "cli_a90466cb86f85bc8"
-    app_secret = os.environ.get("FEISHU_APP_SECRET")
-    if not app_secret and os.path.exists(creds_path):
+    creds = {}
+    if os.path.exists(creds_path):
         with open(creds_path) as f:
             creds = json.load(f)
-            app_secret = creds.get("app_secret")
-    if not app_secret:
-        print("Error: FEISHU_APP_SECRET not set and no credentials file found")
+    app_id = os.environ.get("FEISHU_APP_ID") or creds.get("app_id")
+    app_secret = os.environ.get("FEISHU_APP_SECRET") or creds.get("app_secret")
+    if not app_id or not app_secret:
+        print("Error: FEISHU_APP_ID and FEISHU_APP_SECRET must be set (env or credentials file)")
         sys.exit(1)
 
     print(f"Bitable: {app_token} / {table_id}")

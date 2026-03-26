@@ -4,18 +4,24 @@ Send TTS audio file to Feishu private chat using requests library.
 
 Usage:
     python3 send_voice_to_feishu.py <audio_file> <user_open_id>
+
+Environment variables (required):
+    FEISHU_APP_ID
+    FEISHU_APP_SECRET
 """
 
+import os
 import sys
 import json
 import requests
-import os
 
-APP_ID = "cli_a90466cb86f85bc8"
-APP_SECRET_KEY = "FyQykHiyanqeZqhLM51s7fbl44R3kzrx"
+APP_ID = os.environ.get("FEISHU_APP_ID", "")
+APP_SECRET_KEY = os.environ.get("FEISHU_APP_SECRET", "")
 
 
 def get_tenant_token():
+    if not APP_ID or not APP_SECRET_KEY:
+        raise ValueError("FEISHU_APP_ID and FEISHU_APP_SECRET must be set")
     r = requests.post(
         "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal",
         json={"app_id": APP_ID, "app_secret": APP_SECRET_KEY},
