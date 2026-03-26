@@ -323,8 +323,12 @@ user_open_id = config['user_open_id']
 2. 解析并生成汇总报告
 3. **推送群消息** → 最近24小时数据
 4. **推送私聊语音** → 用户（从 `rpctvm_targets.json` 读取 `user_open_id`）
-   - 使用 `tts` 工具将文字报告转换为语音
-   - 推送到用户私聊
+   - 使用 `tts` 工具生成语音，音频文件默认保存到 `/tmp/tts_output.wav`
+   - 生成后用 `send_voice_to_feishu.py` 脚本发送到私聊：
+     ```
+     python3 /root/.openclaw/workspace/skills/rpctvm/send_voice_to_feishu.py /tmp/tts_output.wav ou_491f83d2cb22d22e94cab10f6f43e87e
+     ```
+   - **重要**: 不能只调用 `tts` 工具就结束！必须用上述脚本主动发送音频文件到私聊（`tts` 工具在 cron 隔离 session 里不会自动推送）
    - **格式要求**: 提取要点，简短突出重点（控制在30秒内）
      - 开头: "设备日报，{日期}"
      - 正文: 仅播报需要关注的设备，按优先级排序
