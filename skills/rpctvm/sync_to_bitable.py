@@ -86,7 +86,7 @@ def date_to_timestamp_ms(dt: datetime) -> int:
 def load_email_data():
     data_path = os.environ.get(
         "OUTPUT_PATH",
-        "/root/.openclaw/agents/vegetablesoup/workspace/memory/sent_emails_data.json"
+        "{workspace}/memory/sent_emails_data.json"
     )
     if not os.path.exists(data_path):
         print(f"Error: Data file not found: {data_path}")
@@ -145,10 +145,10 @@ def main():
     args = parser.parse_args()
 
     # Load config
-    creds_path = "/root/.openclaw/agents/vegetablesoup/workspace/memory/feishu_credentials.json"
+    creds_path = "{workspace}/memory/feishu_credentials.json"
     bitable_path = os.environ.get(
         "BITABLE_CONFIG_PATH",
-        "/root/.openclaw/agents/vegetablesoup/workspace/memory/rpctvm_bitable.json"
+        "{workspace}/memory/rpctvm_bitable.json"
     )
     with open(bitable_path, "r") as f:
         bitable_config = json.load(f)

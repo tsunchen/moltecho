@@ -4,16 +4,48 @@
 
 自动读取指定邮箱的已发送文件夹（Sent），生成邮件汇总报告，并同步到飞书多维表格。
 
+## 重要：时间窗口计算（2026-03-27 修复）
+
+### 问题
+
+原脚本使用滑动窗口计算截止时间，导致日报数据不完整：
+
+```python
+# 错误：滑动窗口
+cutoff_date = datetime.now(cst) - timedelta(days=1)  # 当前时间 - 24小时
+```
+
+当日报 9:00 执行时，截止时间 = 9:00 - 24h = 昨天 9:00。但巡检邮件在昨天 8:xx 发出，会被 `break` 逻辑错误排除。
+
+### 修复
+
+改为固定日期窗口：
+
+```python
+if args.days == 1:
+    # 日报：从昨天 00:00 开始
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    cutoff_date = today_start - timedelta(days=1)  # 昨天 00:00
+else:
+    # 周报等：使用滑动窗口
+    cutoff_date = now - timedelta(days=args.days)
+```
+
+### 其他修复
+
+- `break` 改为 `continue`：遇到旧邮件继续搜索，不停止
+- IMAP SSL 支持：端口 993 使用 `IMAP4_SSL`
+
 ## 配置
 
 ### 环境变量
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
-| `EMAIL_CONFIG_PATH` | 邮箱配置文件路径 | `/root/.openclaw/agents/vegetablesoup/workspace/memory/email_credentials.json` |
-| `BITABLE_CONFIG_PATH` | 多维表格配置文件路径 | `/root/.openclaw/agents/vegetablesoup/workspace/memory/rpctvm_bitable.json` |
-| `TARGETS_CONFIG_PATH` | 推送目标配置文件路径 | `/root/.openclaw/agents/vegetablesoup/workspace/memory/rpctvm_targets.json` |
-| `OUTPUT_PATH` | 邮件数据输出路径 | `/root/.openclaw/agents/vegetablesoup/workspace/memory/sent_emails_data.json` |
+| `EMAIL_CONFIG_PATH` | 邮箱配置文件路径 | `{workspace}/memory/email_credentials.json` |
+| `BITABLE_CONFIG_PATH` | 多维表格配置文件路径 | `{workspace}/memory/rpctvm_bitable.json` |
+| `TARGETS_CONFIG_PATH` | 推送目标配置文件路径 | `{workspace}/memory/rpctvm_targets.json` |
+| `OUTPUT_PATH` | 邮件数据输出路径 | `{workspace}/memory/sent_emails_data.json` |
 | `TARGET_RECIPIENT` | 目标收件人邮箱 | 从配置文件读取 |
 | `NOTIFICATION_CHAT_ID` | 推送群 ID | 从配置文件读取 |
 
@@ -60,7 +92,13 @@
 }
 ```
 
-**注意**: 所有配置文件应存储在安全目录（如 `~/.openclaw/workspace/memory/`），并已添加到 `.gitignore`。
+**注意**: 所有配置文件应存储在安全目录（如 `{workspace}/memory/`），并已添加到 `.gitignore`。
+
+### 路径占位符
+
+脚本中的 `{workspace}` 是占位符，运行时会被替换为实际的工作目录：
+- 本地开发：`/root/.openclaw/agents/{agent_name}/workspace`
+- 上传到 ClawHub 后：由 skill-creator 自动处理
 
 ## 163邮箱IMAP安全检查（关键）
 
@@ -123,7 +161,7 @@ python summarize_sent.py --days 7
 ### 输出
 
 脚本会将结果保存到 `OUTPUT_PATH` 环境变量指定的路径，默认为：
-`/root/.openclaw/agents/rpctvm/workspace/memory/sent_emails_data.json`
+`{workspace}/memory/sent_emails_data.json`
 
 ---
 
@@ -326,7 +364,7 @@ user_open_id = config['user_open_id']
    - 使用 `tts` 工具生成语音，音频文件默认保存到 `/tmp/tts_output.wav`
    - 生成后用 `send_voice_to_feishu.py` 脚本发送到私聊：
      ```
-     python3 /root/.openclaw/workspace/skills/rpctvm/send_voice_to_feishu.py /tmp/tts_output.wav ou_491f83d2cb22d22e94cab10f6f43e87e
+     python3 /root/.openclaw/workspace/skills/rpctvm/send_voice_to_feishu.py /tmp/tts_output.wav $USER_OPEN_ID
      ```
    - **重要**: 不能只调用 `tts` 工具就结束！必须用上述脚本主动发送音频文件到私聊（`tts` 工具在 cron 隔离 session 里不会自动推送）
    - **格式要求**: 提取要点，简短突出重点（控制在30秒内）
@@ -594,4 +632,4 @@ rpctvm Agent 使用远程节点 Edge 浏览器提交 Tower 评论：
 ## 相关文档
 
 - `/root/.openclaw/workspace/MEMORY.md` - 邮件安全与操作约束
-- `/root/.openclaw/agents/rpctvm/workspace/MEMORY.md` - Agent 长期记忆
+- `{workspace}/MEMORY.md` - Agent 长期记忆

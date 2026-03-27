@@ -5,9 +5,9 @@ Send TTS audio file to Feishu private chat using requests library.
 Usage:
     python3 send_voice_to_feishu.py <audio_file> <user_open_id>
 
-Environment variables (required):
-    FEISHU_APP_ID
-    FEISHU_APP_SECRET
+Credentials are read from:
+    - Environment variables (FEISHU_APP_ID, FEISHU_APP_SECRET) if set
+    - Config file: {workspace}/memory/feishu_credentials.json
 """
 
 import os
@@ -15,8 +15,22 @@ import sys
 import json
 import requests
 
+# Try environment variables first, then config file
 APP_ID = os.environ.get("FEISHU_APP_ID", "")
 APP_SECRET_KEY = os.environ.get("FEISHU_APP_SECRET", "")
+
+if not APP_ID or not APP_SECRET_KEY:
+    config_path = os.environ.get(
+        "FEISHU_CONFIG_PATH",
+        "{workspace}/memory/feishu_credentials.json"
+    )
+    try:
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+            APP_ID = config.get("app_id", "")
+            APP_SECRET_KEY = config.get("app_secret", "")
+    except Exception as e:
+        print(f"Warning: Could not load config from {config_path}: {e}")
 
 
 def get_tenant_token():
@@ -69,7 +83,7 @@ def upload_and_send(audio_path: str, user_open_id: str) -> str:
 
 if __name__ == "__main__":
     audio_path = sys.argv[1] if len(sys.argv) > 1 else "/tmp/tts_output.wav"
-    user_id = sys.argv[2] if len(sys.argv) > 2 else "ou_491f83d2cb22d22e94cab10f6f43e87e"
+    user_id = sys.argv[2] if len(sys.argv) > 2 else os.environ.get("DEFAULT_USER_ID", "")
 
     msg_id = upload_and_send(audio_path, user_id)
     print(f"Voice message sent: {msg_id}")

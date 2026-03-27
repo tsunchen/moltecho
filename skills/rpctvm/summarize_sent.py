@@ -146,7 +146,7 @@ def load_config():
     """Load configuration from environment or config file."""
     config_path = os.environ.get(
         'EMAIL_CONFIG_PATH',
-        '/root/.openclaw/workspace/memory/email_credentials.json'
+        '{workspace}/memory/email_credentials.json'
     )
     
     with open(config_path, 'r') as f:
@@ -180,12 +180,26 @@ def summarize_sent():
     sent_folder = "&XfJT0ZAB-"  # IMAP UTF-7 for "已发送"
     
     # Calculate cutoff time (北京时间 Asia/Shanghai)
+    # 日报使用固定日期窗口：昨天 00:00 开始
+    # 这样确保昨天 08:xx 的巡检邮件不会被滑动窗口遗漏
     cst = timezone(timedelta(hours=8))
-    cutoff_date = datetime.now(cst) - timedelta(days=args.days)
+    now = datetime.now(cst)
+    if args.days == 1:
+        # 日报：从昨天 00:00 开始
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        cutoff_date = today_start - timedelta(days=1)  # 昨天 00:00
+    else:
+        # 周报等：使用滑动窗口
+        cutoff_date = now - timedelta(days=args.days)
 
     try:
-        # Connect to IMAP server (port 143 plain; 993/SSL may be blocked)
-        mail = imaplib.IMAP4(config['imap_server'], config.get('imap_port', 143))
+        # Connect to IMAP server
+        # Use SSL for port 993, plain for port 143
+        imap_port = config.get('imap_port', 143)
+        if imap_port == 993:
+            mail = imaplib.IMAP4_SSL(config['imap_server'], imap_port)
+        else:
+            mail = imaplib.IMAP4(config['imap_server'], imap_port)
         mail.login(config['email'], config['auth_code'])
         
         # Critical: Send ID command for 163.com mailbox
@@ -196,7 +210,8 @@ def summarize_sent():
         
         # Use SINCE filter to limit search range (avoids timeout on large mailboxes)
         # 163邮箱按本地时间处理，日期应为北京时间
-        since_date = (datetime.now(cst) - timedelta(days=args.days)).strftime('%d-%b-%Y')
+        # 日报：从昨天开始；周报等：从 N 天前开始
+        since_date = cutoff_date.strftime('%d-%b-%Y')
         status, messages = mail.search(None, f'SINCE {since_date}')
         email_ids = messages[0].split()
         
@@ -207,15 +222,19 @@ def summarize_sent():
         end_idx = max(-1, len(email_ids) - scan_limit - 1)
         
         for i in range(start_idx, end_idx, -1):
-            res, msg_data = mail.fetch(email_ids[i], "(BODY[HEADER.FIELDS (TO CC BCC SUBJECT DATE)])")
-            header_msg = email.message_from_bytes(msg_data[0][1])
+            try:
+                res, msg_data = mail.fetch(email_ids[i], "(BODY[HEADER.FIELDS (TO CC BCC SUBJECT DATE)])")
+                header_msg = email.message_from_bytes(msg_data[0][1])
+            except Exception as e:
+                print(f"Warning: Failed to fetch header for email {i}: {e}")
+                continue
             
             # Check Date first
             date_raw = header_msg.get("Date")
             try:
                 msg_date = email.utils.parsedate_to_datetime(date_raw)
                 if msg_date < cutoff_date:
-                    break  # Reached cutoff
+                    continue  # Skip old emails, don't break - newer emails might be after this
             except:
                 continue
 
@@ -225,8 +244,12 @@ def summarize_sent():
             
             # Check if target recipient is in TO, CC, or BCC
             if target_recipient.lower() in (to_field + cc_field + bcc_field):
-                res_full, msg_full_data = mail.fetch(email_ids[i], "(RFC822)")
-                msg_full = email.message_from_bytes(msg_full_data[0][1])
+                try:
+                    res_full, msg_full_data = mail.fetch(email_ids[i], "(RFC822)")
+                    msg_full = email.message_from_bytes(msg_full_data[0][1])
+                except Exception as e:
+                    print(f"Warning: Failed to fetch full email {i}: {e}")
+                    continue
                 
                 subject, encoding = decode_header(msg_full["Subject"])[0]
                 if isinstance(subject, bytes):
@@ -262,7 +285,7 @@ def summarize_sent():
         # Output path from environment or default
         output_path = os.environ.get(
             'OUTPUT_PATH',
-            '/root/.openclaw/agents/vegetablesoup/workspace/memory/sent_emails_data.json'
+            '{workspace}/memory/sent_emails_data.json'
         )
         
         # Ensure output directory exists
