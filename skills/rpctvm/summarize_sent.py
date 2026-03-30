@@ -142,11 +142,61 @@ def extract_alert_info(content):
     }
 
 
+def find_workspace():
+    """Find the correct workspace directory."""
+    # Priority:
+    # 1. WORKSPACE_DIR environment variable (explicit override)
+    # 2. Search for agents/*/workspace/memory/email_credentials.json
+    # 3. Fallback to script's parent directory
+    
+    env_workspace = os.environ.get('WORKSPACE_DIR')
+    if env_workspace and os.path.isdir(env_workspace):
+        # Verify config exists
+        config_path = os.path.join(env_workspace, 'memory', 'email_credentials.json')
+        if os.path.isfile(config_path):
+            return env_workspace
+    
+    script_path = os.path.abspath(__file__)
+    
+    # Search for agents/*/workspace with email_credentials.json
+    # Start from script location and go up
+    search_paths = [
+        os.path.dirname(script_path),  # skills/rpctvm
+        os.path.dirname(os.path.dirname(script_path)),  # skills
+        os.path.dirname(os.path.dirname(os.path.dirname(script_path))),  # workspace
+    ]
+    
+    for base_path in search_paths:
+        # Check if we're under openclaw
+        openclaw_idx = base_path.find('/.openclaw/')
+        if openclaw_idx > 0:
+            openclaw_root = base_path[:openclaw_idx + len('/.openclaw')]
+            agents_dir = os.path.join(openclaw_root, 'agents')
+            if os.path.isdir(agents_dir):
+                for agent in os.listdir(agents_dir):
+                    agent_workspace = os.path.join(agents_dir, agent, 'workspace')
+                    config_path = os.path.join(agent_workspace, 'memory', 'email_credentials.json')
+                    if os.path.isfile(config_path):
+                        return agent_workspace
+    
+    # Fallback: check relative paths
+    candidate = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(script_path))), 
+                             'agents', 'vegetablesoup', 'workspace')
+    config_path = os.path.join(candidate, 'memory', 'email_credentials.json')
+    if os.path.isfile(config_path):
+        return candidate
+    
+    # Final fallback
+    return os.path.dirname(os.path.dirname(os.path.dirname(script_path)))
+
+
 def load_config():
     """Load configuration from environment or config file."""
+    workspace = find_workspace()
+    
     config_path = os.environ.get(
         'EMAIL_CONFIG_PATH',
-        '{workspace}/memory/email_credentials.json'
+        os.path.join(workspace, 'memory', 'email_credentials.json')
     )
     
     with open(config_path, 'r') as f:
@@ -283,9 +333,10 @@ def summarize_sent():
         mail.logout()
         
         # Output path from environment or default
+        workspace = find_workspace()
         output_path = os.environ.get(
             'OUTPUT_PATH',
-            '{workspace}/memory/sent_emails_data.json'
+            os.path.join(workspace, 'memory', 'sent_emails_data.json')
         )
         
         # Ensure output directory exists

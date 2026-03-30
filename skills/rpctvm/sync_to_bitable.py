@@ -83,10 +83,45 @@ def date_to_timestamp_ms(dt: datetime) -> int:
     return int(utc_dt.timestamp() * 1000)
 
 
+def find_workspace():
+    """Find the correct workspace directory with the most recent data."""
+    script_path = os.path.abspath(__file__)
+    
+    # Check environment variable first
+    env_workspace = os.environ.get('WORKSPACE_DIR')
+    if env_workspace and os.path.isdir(env_workspace):
+        config_path = os.path.join(env_workspace, 'memory', 'sent_emails_data.json')
+        if os.path.isfile(config_path):
+            return env_workspace
+    
+    # Find all candidate workspaces with data files
+    candidates = []
+    openclaw_idx = script_path.find('/.openclaw/')
+    if openclaw_idx > 0:
+        openclaw_root = script_path[:openclaw_idx + len('/.openclaw')]
+        agents_dir = os.path.join(openclaw_root, 'agents')
+        if os.path.isdir(agents_dir):
+            for agent in os.listdir(agents_dir):
+                agent_workspace = os.path.join(agents_dir, agent, 'workspace')
+                config_path = os.path.join(agent_workspace, 'memory', 'sent_emails_data.json')
+                if os.path.isfile(config_path):
+                    candidates.append((config_path, agent_workspace))
+    
+    # Return the workspace with the most recently modified data file
+    if candidates:
+        # Sort by modification time (most recent first)
+        candidates.sort(key=lambda x: os.path.getmtime(x[0]), reverse=True)
+        return candidates[0][1]
+    
+    # Fallback
+    return os.path.dirname(os.path.dirname(os.path.dirname(script_path)))
+
+
 def load_email_data():
+    workspace = find_workspace()
     data_path = os.environ.get(
         "OUTPUT_PATH",
-        "{workspace}/memory/sent_emails_data.json"
+        os.path.join(workspace, 'memory', 'sent_emails_data.json')
     )
     if not os.path.exists(data_path):
         print(f"Error: Data file not found: {data_path}")
@@ -144,11 +179,14 @@ def main():
     parser.add_argument("--days", type=int, default=7, help="Number of past days to sync (default: 7)")
     args = parser.parse_args()
 
+    # Get workspace directory
+    workspace = find_workspace()
+    
     # Load config
-    creds_path = "{workspace}/memory/feishu_credentials.json"
+    creds_path = os.path.join(workspace, 'memory', 'feishu_credentials.json')
     bitable_path = os.environ.get(
         "BITABLE_CONFIG_PATH",
-        "{workspace}/memory/rpctvm_bitable.json"
+        os.path.join(workspace, 'memory', 'rpctvm_bitable.json')
     )
     with open(bitable_path, "r") as f:
         bitable_config = json.load(f)

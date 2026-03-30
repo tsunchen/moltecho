@@ -1,0 +1,12 @@
+# Sensitive configuration files
+memory/
+*.json
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Temporary files
+*.tmp
+*.log

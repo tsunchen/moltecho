@@ -45,9 +45,9 @@ else:
 | `EMAIL_CONFIG_PATH` | 邮箱配置文件路径 | `{workspace}/memory/email_credentials.json` |
 | `BITABLE_CONFIG_PATH` | 多维表格配置文件路径 | `{workspace}/memory/rpctvm_bitable.json` |
 | `TARGETS_CONFIG_PATH` | 推送目标配置文件路径 | `{workspace}/memory/rpctvm_targets.json` |
+| `TOWER_CONFIG_PATH` | Tower 配置文件路径 | `{workspace}/memory/rpctvm_tower.json` |
+| `FEISHU_CONFIG_PATH` | 飞书凭证文件路径 | `{workspace}/memory/feishu_credentials.json` |
 | `OUTPUT_PATH` | 邮件数据输出路径 | `{workspace}/memory/sent_emails_data.json` |
-| `TARGET_RECIPIENT` | 目标收件人邮箱 | 从配置文件读取 |
-| `NOTIFICATION_CHAT_ID` | 推送群 ID | 从配置文件读取 |
 
 ### 配置文件格式
 
@@ -57,7 +57,7 @@ else:
 {
   "email": "your-email@example.com",
   "imap_server": "imap.example.com",
-  "imap_port": 993,
+  "imap_port": 143,
   "auth_code": "your-auth-code",
   "target_recipient": "recipient@example.com"
 }
@@ -87,8 +87,19 @@ else:
 
 ```json
 {
-  "task_url": "https://tower.im/teams/YOUR_TEAM/todos/YOUR_TODO",
-  "node_name": "YOUR_NODE_NAME"
+  "tower_url": "https://tower.im/teams/{team_id}/todos/{todo_id}",
+  "tower_name": "任务名称",
+  "active_month": "YYYY-MM",
+  "node_name": "远程节点名称"
+}
+```
+
+#### 飞书凭证 (feishu_credentials.json)
+
+```json
+{
+  "app_id": "your-app-id",
+  "app_secret": "your-app-secret"
 }
 ```
 
@@ -96,8 +107,8 @@ else:
 
 ### 路径占位符
 
-脚本中的 `{workspace}` 是占位符，运行时会被替换为实际的工作目录：
-- 本地开发：`/root/.openclaw/agents/{agent_name}/workspace`
+脚本中的 `{workspace}` 会被自动替换为实际的工作目录：
+- Agent workspace: `/root/.openclaw/agents/{agent_name}/workspace`
 - 上传到 ClawHub 后：由 skill-creator 自动处理
 
 ## 163邮箱IMAP安全检查（关键）
@@ -176,7 +187,7 @@ import os
 import json
 
 config_path = os.environ.get('BITABLE_CONFIG_PATH', 
-                              '/root/.openclaw/workspace/memory/rpctvm_bitable.json')
+                              '{workspace}/memory/rpctvm_bitable.json')
 with open(config_path, 'r') as f:
     config = json.load(f)
 
@@ -239,8 +250,8 @@ table_id = config['table_id']
   "type": "Alert",
   "alert_devices": [
     {
-      "device": "PuFaJiTuan-040200-01",
-      "tenant": "Customer-PuFaJiTuan",
+      "device": "Device-Name",
+      "tenant": "Tenant-Name",
       "details": "UNREACHABLE ( No Loading Any Uplink ... )",
       "status": "unreachable"
     }
@@ -254,36 +265,6 @@ table_id = config['table_id']
 - 检测 `UNREACHABLE`、`offline`、`失联` 关键词标记为失联设备
 - 失联设备在日报中排在最前面（优先级最高）
 
-### 合并逻辑
-
-```python
-# 按日期分组
-daily_data = {}
-for email in emails:
-    date_key = parse_date(email["date"]).date()
-    if date_key not in daily_data:
-        daily_data[date_key] = {
-            "count": 0,
-            "unreachable_devices": {},  # 失联设备（优先级最高）
-            "special_devices": {},      # 特殊设备
-            "general_devices": {}       # 一般设备
-        }
-    daily_data[date_key]["count"] += 1
-    
-    # 处理 Proximity 邮件
-    if email["type"] == "Proximity" and email.get("granular_spoke_stats"):
-        for dev in email["granular_spoke_stats"]["special"]:
-            daily_data[date_key]["special_devices"][dev["device"]] = dev["details"]
-        for dev in email["granular_spoke_stats"]["general"]:
-            daily_data[date_key]["general_devices"][dev["device"]] = dev["details"]
-    
-    # 处理 Alert 邮件（失联设备）
-    elif email["type"] == "Alert" and email.get("alert_devices"):
-        for dev in email["alert_devices"]:
-            if dev["status"] == "unreachable":
-                daily_data[date_key]["unreachable_devices"][dev["device"]] = dev["details"]
-```
-
 ### 设备详情格式
 
 - **失联设备**: `🔴 设备名 (UNREACHABLE/失联)` - 最高优先级
@@ -293,9 +274,9 @@ for email in emails:
 
 示例：
 ```
-🔴 PuFaJiTuan-040200-01 (UNREACHABLE)
-🟠 PuFaJiTuan-030000-01 (Wan1 双链路告警)
-🟡 PuFaJiTuan-100200-01 (Wan2 能见度80%)
+🔴 Device-001 (UNREACHABLE)
+🟠 Device-002 (Wan1 双链路告警)
+🟡 Device-003 (Wan2 能见度80%)
 ```
 
 **排序优先级**：失联设备 > 特殊设备 > 一般设备
@@ -323,17 +304,17 @@ timestamp_ms = int(dt.timestamp() * 1000)
 
 ## 定时任务
 
-| 任务 | 时间 | Cron ID | 说明 |
-|------|------|---------|------|
-| 日报 | 周一至周六 9:00 (北京时间) | `fbbd8ccd-1184-4725-b1a1-74d9f4a20e32` | 推送群消息+语音+Tower评论+更新表格 |
-| 周报 | 周日 18:00 | `77445691-4e3c-433c-af6b-3c06995650a7` | **仅更新表格，不推送消息** |
+| 任务 | 时间 | 说明 |
+|------|------|------|
+| 日报 | 周一至周六 9:00 (北京时间) | 推送群消息+语音+Tower评论 |
+| 周报 | 周日 12:00 (北京时间) | **仅更新表格，不推送消息** |
 
 ### 推送目标
 
 | 消息类型 | 目标 | 配置字段 | 用途 |
 |----------|------|----------|------|
-| **文字报告** | 群聊 | `group_chat_id` | 备用查看 |
-| **语音播报** | 私聊 | `user_open_id` | 主要播报，点击播放 |
+| **文字报告** | 群聊 | `group_chat_id` | 主要查看 |
+| **语音播报** | 私聊 | `user_open_id` | 语音播报 |
 
 推送目标 ID 从配置文件读取：
 
@@ -342,7 +323,7 @@ import os
 import json
 
 config_path = os.environ.get('TARGETS_CONFIG_PATH',
-                              '/root/.openclaw/workspace/memory/rpctvm_targets.json')
+                              '{workspace}/memory/rpctvm_targets.json')
 with open(config_path, 'r') as f:
     config = json.load(f)
 
@@ -350,53 +331,68 @@ group_chat_id = config['group_chat_id']
 user_open_id = config['user_open_id']
 ```
 
-### 日报任务流程
+---
+
+## 日报任务流程
 
 **执行时间**: 每天上午 9:00（周一至周六）
 
-**数据范围**: 最近24小时邮件数据
+**数据范围**: 从昨天 00:00 开始的邮件数据
 
 **流程步骤**:
-1. 获取邮件数据（最近24小时）
-2. 解析并生成汇总报告
-3. **推送群消息** → 最近24小时数据
-4. **推送私聊语音** → 用户（从 `rpctvm_targets.json` 读取 `user_open_id`）
-   - 使用 `tts` 工具生成语音，音频文件默认保存到 `/tmp/tts_output.wav`
-   - 生成后用 `send_voice_to_feishu.py` 脚本发送到私聊：
-     ```
-     python3 /root/.openclaw/workspace/skills/rpctvm/send_voice_to_feishu.py /tmp/tts_output.wav $USER_OPEN_ID
-     ```
-   - **重要**: 不能只调用 `tts` 工具就结束！必须用上述脚本主动发送音频文件到私聊（`tts` 工具在 cron 隔离 session 里不会自动推送）
-   - **格式要求**: 提取要点，简短突出重点（控制在30秒内）
-     - 开头: "设备日报，{日期}"
-     - 正文: 仅播报需要关注的设备，按优先级排序
-       1. 失联设备（最优先）: "失联{X}台：{设备名}..."
-       2. 特殊设备: "特殊{X}台：{设备名}..."
-       3. 一般设备（仅报数量）: "一般关注{X}台"
-     - 结尾: "共{X}台需关注，详情见群消息"
-     - **省略规则**: 设备详情和问题描述只在必要时提及，优先报数量
-   - **语音示例**：
-     - 有失联设备: "设备日报，3月20日。失联2台：PuFaJiTuan-010000-01、HuaQiao-020200-03。特殊1台：双链路告警。一般关注1台。共4台需关注，详情见群消息。"
-     - 只有特殊设备: "设备日报，3月19日。特殊3台：双链路告警。一般2台：Wan2能见度80%。共5台需关注，详情见群消息。"
-     - 只有一般设备: "设备日报，3月17日。一般关注2台。PuFaJiTuan-040100-01 Wan2能见度80%。详情见群消息。"
-     - 无异常: "设备日报，3月16日。巡检完成，一切正常。"
-5. **Tower 评论**（需 Win10-Node 在线）→ 任务评论区
-   - **前置检查**: 调用 `nodes status` 检查 Win10-Node 是否在线
-   - **离线跳过**: 如果 Win10-Node 离线，记录日志并跳过 Tower 评论步骤
-   - **在线执行**: 如果 Win10-Node 在线，继续执行 Tower 评论提交
-6. **同步多维表格** → 写入昨天的数据（排除当天）
 
-**注意**: 日报推送最近24小时数据，但多维表格写入昨天的数据。
+### 1. 获取邮件数据
 
-**时间戳计算**: 使用日期对应的北京时间 00:00 转换为 UTC 时间戳（毫秒）
-- 北京时间 2026-03-15 00:00 = UTC 2026-03-14 16:00
-- 时间戳: 1773504000000
+```bash
+python3 {workspace}/skills/rpctvm/summarize_sent.py --days 1
+```
 
-## Tower 评论格式
+脚本会自动检测正确的 workspace 路径，输出文件：`{workspace}/memory/sent_emails_data.json`
 
-### 配置文件
+### 2. 生成汇总报告
 
-Tower 任务配置存储在 `/root/.openclaw/workspace/memory/rpctvm_tower.json`
+分析邮件类型 (Proximity/Alert)，提取关键设备信息。
+
+### 3. 推送群消息
+
+- 目标：从 `rpctvm_targets.json` 读取 `group_chat_id`
+- 格式：使用格式一（带 emoji）
+
+### 4. 推送私聊语音
+
+- 目标：从 `rpctvm_targets.json` 读取 `user_open_id`
+- 使用 `tts` 工具生成语音
+- **格式要求**: 提取要点，简短突出重点（控制在30秒内）
+  - 开头: "设备日报，{日期}"
+  - 正文: 仅播报需要关注的设备，按优先级排序
+    1. 失联设备（最优先）: "失联{X}台：{设备名}..."
+    2. 特殊设备: "特殊{X}台：{设备名}..."
+    3. 一般设备（仅报数量）: "一般关注{X}台"
+  - 结尾: "共{X}台需关注，详情见群消息"
+
+**语音示例**：
+- 有失联设备: "设备日报，3月20日。失联2台：Device-001、Device-002。特殊1台：双链路告警。一般关注1台。共4台需关注，详情见群消息。"
+- 只有特殊设备: "设备日报，3月19日。特殊3台：双链路告警。一般2台：Wan2能见度80%。共5台需关注，详情见群消息。"
+- 只有一般设备: "设备日报，3月17日。一般关注2台。Device-001 Wan2能见度80%。详情见群消息。"
+- 无异常: "设备日报，3月16日。巡检完成，一切正常。"
+
+### 5. Tower 评论
+
+- 任务 URL：从 `rpctvm_tower.json` 读取
+- 评论格式：使用格式二（纯文本）
+- **前置检查**: 检查远程节点是否在线
+- **离线跳过**: 如果节点离线，记录日志并跳过
+
+### 6. Tower 评论提交流程
+
+1. **检查节点状态**: 确保远程节点在线
+2. **打开 Tower 任务页面**: URL 从配置文件读取
+3. **等待页面加载**: 确保评论区可见
+4. **激活编辑器**: 点击评论区激活富文本编辑器
+5. **输入评论内容**: 使用 `type` 命令输入（Tower 富文本编辑器需要此方式）
+6. **提交评论**: 点击"发表评论"按钮
+
+**关键**: Tower 富文本编辑器不支持 `innerHTML` 或 `evaluate` 方式输入内容，必须使用 `type` 命令。
 
 ---
 
@@ -406,7 +402,6 @@ Tower 任务配置存储在 `/root/.openclaw/workspace/memory/rpctvm_tower.json`
 
 用于推送到飞书群聊，支持 emoji 和丰富格式，便于阅读。
 
-**格式模板**：
 ```
 📊 设备日报 Device Daily (YYYY/MM/DD)
 ━━━━━━━━━━━━━━━━━━
@@ -416,13 +411,13 @@ Tower 任务配置存储在 `/root/.openclaw/workspace/memory/rpctvm_tower.json`
 • 涉及设备: X 台
 ━━━━━━━━━━━━━━━━━━
 🔴 失联设备（优先关注）
-[失联设备列表，每个一行]
+[失联设备列表]
 ━━━━━━━━━━━━━━━━━━
 🟠 特殊设备
-[特殊设备列表，每个一行]
+[特殊设备列表]
 ━━━━━━━━━━━━━━━━━━
 🟡 一般设备
-[一般设备列表，每个一行]
+[一般设备列表]
 ━━━━━━━━━━━━━━━━━━
 💡 建议
 [建议内容]
@@ -430,129 +425,17 @@ Tower 任务配置存储在 `/root/.openclaw/workspace/memory/rpctvm_tower.json`
 报告时间: YYYY-MM-DD HH:MM
 ```
 
-**示例1：无异常**
-```
-📊 设备日报 Device Daily (2026/03/17)
-━━━━━━━━━━━━━━━━━━
-📈 总体统计
-• 邮件总数: 2 封
-• 告警类型: Proximity
-• 涉及设备: 0 台
-━━━━━━━━━━━━━━━━━━
-✅ 巡检完成，一切正常。
-━━━━━━━━━━━━━━━━━━
-报告时间: 2026-03-17 08:30
-```
-
-**示例2：只有一般设备**
-```
-📊 设备日报 Device Daily (2026/03/17)
-━━━━━━━━━━━━━━━━━━
-📈 总体统计
-• 邮件总数: 3 封
-• 告警类型: Proximity
-• 涉及设备: 2 台
-━━━━━━━━━━━━━━━━━━
-🟡 一般设备
-• PuFaJiTuan-040100-01: Wan2 能见度 80%
-• PuFaJiTuan-100200-01: Wan2 能见度 75%
-━━━━━━━━━━━━━━━━━━
-💡 建议
-请关注设备链路状态。
-━━━━━━━━━━━━━━━━━━
-报告时间: 2026-03-17 08:30
-```
-
-**示例3：特殊设备 + 一般设备**
-```
-📊 设备日报 Device Daily (2026/03/19)
-━━━━━━━━━━━━━━━━━━
-📈 总体统计
-• 邮件总数: 4 封
-• 告警类型: Proximity
-• 涉及设备: 5 台
-━━━━━━━━━━━━━━━━━━
-🟠 特殊设备
-• PuFaJiTuan-050300-01: 双链路告警
-• PuFaJiTuan-090000-03: 双链路告警
-• PuFaJiTuan-090000-04: 双链路告警
-━━━━━━━━━━━━━━━━━━
-🟡 一般设备
-• PuFaJiTuan-060200-01: Wan2 能见度 80%
-• PuFaJiTuan-040100-02: Wan2 能见度 75%
-━━━━━━━━━━━━━━━━━━
-💡 建议
-特殊设备需优先排查双链路问题。
-━━━━━━━━━━━━━━━━━━
-报告时间: 2026-03-19 08:30
-```
-
-**示例4：失联设备 + 特殊设备 + 一般设备**
-```
-📊 设备日报 Device Daily (2026/03/20)
-━━━━━━━━━━━━━━━━━━
-📈 总体统计
-• 邮件总数: 5 封
-• 告警类型: Proximity + Alert
-• 涉及设备: 6 台
-━━━━━━━━━━━━━━━━━━
-🔴 失联设备（优先关注）
-• PuFaJiTuan-010000-01: 长时间无响应
-• HuaQiao-020200-03: 无法访问
-━━━━━━━━━━━━━━━━━━
-🟠 特殊设备
-• PuFaJiTuan-050300-01: 双链路告警
-• PuFaJiTuan-090000-03: 双链路告警
-• PuFaJiTuan-090000-04: 双链路告警
-━━━━━━━━━━━━━━━━━━
-🟡 一般设备
-• PuFaJiTuan-060200-01: Wan2 能见度 80%
-━━━━━━━━━━━━━━━━━━
-💡 建议
-失联设备请立即检查！特殊设备需排查双链路问题。
-━━━━━━━━━━━━━━━━━━
-报告时间: 2026-03-20 08:30
-```
-
----
-
 ### 📝 格式二：Tower 评论区
 
-**✓ 支持 emoji**: Tower 富文本编辑器支持 emoji 符号，可使用 📊 🔴 🟠 🟡 ✅ 等图标增强可读性
+**纯文本格式**，不使用 emoji，保持简洁：
 
-**格式模板**：
 ```
 YYYY年MM月DD日巡检完成。{租户}租户{报告类型}报告。{失联/特殊设备汇总}。{一般设备汇总}。共Z台设备需关注。
 ```
 
-**设备分类优先级**（按严重程度排序）：
-1. **失联设备** - 最高优先级，放在评论最前面
-2. **特殊设备** - 双链路告警等严重问题
-3. **一般设备** - Wan2能见度下降等一般关注
-
-**示例1：无异常**
+**示例**：
 ```
-巡检已完成，一切正常。
-```
-
-**示例2：只有一般设备**
-```
-2026年3月17日巡检完成。浦发租户Proximity报告。1台一般设备Wan2能见度80%(PuFaJiTuan-040100-01)。共1台设备需关注。
-```
-
-**示例3：特殊设备 + 一般设备**
-```
-2026年3月19日巡检完成。浦发租户Proximity报告。3台特殊设备双链路告警(PuFaJiTuan-050300-01,090000-03,090000-04)，2台一般设备Wan2能见度75%-80%(PuFaJiTuan-060200-01,040100-02)。共5台设备需关注。
-```
-
-**示例4：失联设备 + 特殊设备 + 一般设备**
-```
-2026年3月20日巡检完成。浦发租户Proximity报告。2台设备失联(PuFaJiTuan-010000-01,HuaQiao-020200-03)。3台特殊设备双链路告警(PuFaJiTuan-050300-01,090000-03,090000-04)。1台一般设备Wan2能见度80%(PuFaJiTuan-060200-01)。共6台设备需关注。
-```
-
-**示例5：只有失联设备**
-```
-2026年3月21日巡检完成。华桥租户Alert报告。2台设备失联(HuaQiao-020200-03,HuaQiao-020200-04)。请立即检查。
+2026年3月30日巡检完成。浦发租户Proximity报告。1台特殊设备Wan1告警(Device-001)。6台一般设备能见度75%-80%。美赛尔租户Alert报告。1台设备失联(Device-002)。共9台设备需关注。
 ```
 
 ---
@@ -565,71 +448,36 @@ YYYY年MM月DD日巡检完成。{租户}租户{报告类型}报告。{失联/特
 - `长时间无响应`
 - `无响应` / `no response`
 
-### 推送规则
+---
 
-| 推送目标 | 格式 | 说明 |
-|----------|------|------|
-| 飞书群聊 | 格式一（带 emoji） | 丰富格式，便于阅读 |
-| Tower 评论区 | 格式二（纯文本） | 简短格式，兼容 Tower 编辑器 |
+## 错误处理
 
-### 写入流程
+### Tower 评论失败
 
-1. 读取 `sent_emails_data.json` 获取最新邮件数据
-2. 按日期汇总统计
-3. 生成符合模板格式的评论
-4. 通过浏览器自动化提交到 Tower 任务评论区
-
-### 登录要求
-
-- 需要通过飞书扫码授权
-- Win10-Node Edge 浏览器需要单独授权
-
-### 浏览器配置
-
-rpctvm Agent 使用远程节点 Edge 浏览器提交 Tower 评论：
-
-| 配置项 | 值 |
-|--------|------|
-| 浏览器 | Microsoft Edge (Chromium) |
-| Profile | openclaw |
-| CDP 端口 | 18800 |
-| 数据目录 | 从环境变量或配置文件读取 |
-
-### Tower 评论提交流程
-
-**⚠️ 节点名从配置文件读取**
-
-**⚠️ 关键步骤**: Tower 的富文本编辑器不会自动出现，必须先点击评论区才能激活！
-
-1. **检查浏览器状态**: 确保 Edge 浏览器已启动并连接 CDP 端口
-2. **打开 Tower 任务页面**: URL 从配置文件读取
-3. **等待页面加载**: 确保评论区可见
-4. **滚动到评论区**: 使用 `End` 键或 `ArrowDown` 滚动到页面底部
-5. **点击"点击发表评论"文本**: 这是激活编辑器的关键！需要点击文字本身而非链接
-6. **等待富文本编辑器加载**: 出现工具栏（资源卡片、Emoji、有序列表等按钮）和文本框
-7. **输入评论内容**: 使用 `ref=e53`（富文本编辑器 textbox）输入评论
-8. **点击"保存"按钮**: 使用 `ref=e55` 提交评论
-9. **关闭标签页**: 清理浏览器资源
-
-**常见问题**:
-- 如果找不到评论框 → 需要先点击"点击发表评论"文本激活编辑器
-- 提交按钮是"保存"不是"发表" → 使用工具栏下方的"保存"按钮
-- 编辑器加载需要几秒 → 提交后等待页面刷新确认评论成功
-
-**关键**: 所有 browser 操作的节点名和 URL 从配置文件读取，不要硬编码！
-
-### 错误处理
-
-如果 Tower 评论失败：
-1. 检查浏览器是否有 Tower 页面标签
+1. 检查远程节点是否在线
 2. 检查是否需要重新登录 Tower
-3. 确认是否先点击了"点击发表评论"文本激活编辑器
-4. 确认使用"保存"按钮提交而非"发表"按钮
-5. 记录错误日志并通知管理员
+3. 确认使用 `type` 命令输入内容（不是 `innerHTML` 或 `evaluate`）
+4. 记录错误日志并跳过此步骤
+
+### 邮箱连接失败
+
+1. 检查网络连接
+2. 检查 IMAP 端口（143 或 993）
+3. 确认 163 邮箱发送了 ID 命令
+
+### 飞书 API 失败
+
+1. 检查 `feishu_credentials.json` 配置
+2. 检查 app_id 和 app_secret 是否正确
+3. 检查飞书应用权限
 
 ---
 
 ## 相关文档
 
-- `/root/.openclaw/workspace/MEMORY.md` - 邮件安全与操作约束
 - `{workspace}/MEMORY.md` - Agent 长期记忆
+- `{workspace}/memory/email_credentials.json` - 邮箱配置
+- `{workspace}/memory/rpctvm_targets.json` - 推送目标配置
+- `{workspace}/memory/rpctvm_tower.json` - Tower 配置
+- `{workspace}/memory/rpctvm_bitable.json` - 多维表格配置
+- `{workspace}/memory/feishu_credentials.json` - 飞书凭证

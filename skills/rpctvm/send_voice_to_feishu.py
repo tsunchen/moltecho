@@ -15,6 +15,42 @@ import sys
 import json
 import requests
 
+def find_workspace():
+    """Find the correct workspace directory."""
+    # Priority: Check for feishu_credentials.json (primary config file)
+    env_workspace = os.environ.get('WORKSPACE_DIR')
+    if env_workspace and os.path.isdir(env_workspace):
+        config_path = os.path.join(env_workspace, 'memory', 'feishu_credentials.json')
+        if os.path.isfile(config_path):
+            return env_workspace
+    
+    script_path = os.path.abspath(__file__)
+    
+    # Search for agents/*/workspace/memory/feishu_credentials.json
+    openclaw_idx = script_path.find('/.openclaw/')
+    if openclaw_idx > 0:
+        openclaw_root = script_path[:openclaw_idx + len('/.openclaw')]
+        agents_dir = os.path.join(openclaw_root, 'agents')
+        if os.path.isdir(agents_dir):
+            for agent in os.listdir(agents_dir):
+                agent_workspace = os.path.join(agents_dir, agent, 'workspace')
+                config_path = os.path.join(agent_workspace, 'memory', 'feishu_credentials.json')
+                if os.path.isfile(config_path):
+                    return agent_workspace
+    
+    # Fallback: check if current workspace has the config
+    candidate = os.path.dirname(os.path.dirname(os.path.dirname(script_path)))
+    config_path = os.path.join(candidate, 'memory', 'feishu_credentials.json')
+    if os.path.isfile(config_path):
+        return candidate
+    
+    # Final fallback
+    return os.path.dirname(os.path.dirname(os.path.dirname(script_path)))
+
+
+# Get workspace directory
+WORKSPACE_DIR = find_workspace()
+
 # Try environment variables first, then config file
 APP_ID = os.environ.get("FEISHU_APP_ID", "")
 APP_SECRET_KEY = os.environ.get("FEISHU_APP_SECRET", "")
@@ -22,7 +58,7 @@ APP_SECRET_KEY = os.environ.get("FEISHU_APP_SECRET", "")
 if not APP_ID or not APP_SECRET_KEY:
     config_path = os.environ.get(
         "FEISHU_CONFIG_PATH",
-        "{workspace}/memory/feishu_credentials.json"
+        os.path.join(WORKSPACE_DIR, 'memory', 'feishu_credentials.json')
     )
     try:
         with open(config_path, 'r') as f:
