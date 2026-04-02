@@ -206,9 +206,14 @@ def load_config():
 def summarize_sent():
     """Main function to summarize sent emails."""
     parser = argparse.ArgumentParser()
-    parser.add_argument("--days", type=int, default=1, help="Number of days to search back (default: 1 = 24 hours)")
+    parser.add_argument("--days", type=int, default=None, help="Number of days to search back (default: 1 = 24 hours)")
+    parser.add_argument("--hours", type=int, default=None, help="Number of hours to search back (sliding window)")
     parser.add_argument("--config", type=str, help="Path to config file (overrides EMAIL_CONFIG_PATH)")
     args = parser.parse_args()
+    
+    # Default to 1 day if neither days nor hours specified
+    if args.days is None and args.hours is None:
+        args.days = 1
 
     # Load configuration
     if args.config:
@@ -230,11 +235,15 @@ def summarize_sent():
     sent_folder = "&XfJT0ZAB-"  # IMAP UTF-7 for "已发送"
     
     # Calculate cutoff time (北京时间 Asia/Shanghai)
-    # 日报使用固定日期窗口：昨天 00:00 开始
-    # 这样确保昨天 08:xx 的巡检邮件不会被滑动窗口遗漏
+    # --hours: 滑动窗口（从现在向前推N小时）
+    # --days: 固定日期窗口（日报：昨天 00:00 开始；周报等：滑动N天）
     cst = timezone(timedelta(hours=8))
     now = datetime.now(cst)
-    if args.days == 1:
+    
+    if args.hours is not None:
+        # 滑动小时窗口
+        cutoff_date = now - timedelta(hours=args.hours)
+    elif args.days == 1:
         # 日报：从昨天 00:00 开始
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         cutoff_date = today_start - timedelta(days=1)  # 昨天 00:00
@@ -267,7 +276,13 @@ def summarize_sent():
         
         report_data = []
         # Pull enough emails to cover the time range (batch fetch)
-        scan_limit = 200 if args.days <= 1 else 1000
+        # Use hours to determine scan limit if specified
+        if args.hours is not None:
+            scan_limit = min(200, args.hours * 30)  # ~30 emails per hour estimate
+        elif args.days is not None and args.days <= 1:
+            scan_limit = 200
+        else:
+            scan_limit = 1000
         start_idx = len(email_ids) - 1
         end_idx = max(-1, len(email_ids) - scan_limit - 1)
         
