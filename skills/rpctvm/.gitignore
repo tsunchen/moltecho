@@ -1,12 +1,8 @@
-# Sensitive configuration files
-memory/
-*.json
-
-# Python cache
+# Python
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]
+*$py.class
 
-# Temporary files
-*.tmp
-*.log
+# 敏感配置（示例文件可以提交）
+*-credentials.json
+*-secrets.json
