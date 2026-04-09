@@ -1,6 +1,7 @@
 # 敏感配置文件 - 禁止提交
 *_credentials.json
 skills/*/config.json
+skills/*/okx_credentials.json
 .env
 .env.*
 
