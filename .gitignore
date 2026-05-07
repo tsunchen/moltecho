@@ -56,6 +56,15 @@ MEMORY.md
 AGENTS.md
 USER.md
 
+# Personal workspace files
+IDENTITY.md
+SOUL.md
+TOOLS.md
+HEARTBEAT.md
+
+# OpenClaw runtime data
+.openclaw/
+
 # Scripts with hardcoded credentials
 scripts/calendar-reminder.sh
 

@@ -34,7 +34,7 @@
 
 | 配置项 | 值 |
 |--------|-----|
-| 节点名 | `DESKTOP-58PJJ39` |
+| 节点名 | `<YOUR_NODE_NAME>` |
 | 平台 | Windows 10 x86 (32-bit) |
 | 模式 | `gateway.mode: "remote"` |
 
@@ -42,10 +42,10 @@
 
 ```bash
 # 添加 Python 虚拟环境授权
-openclaw approvals allowlist add --node "DESKTOP-58PJJ39" --agent "main" "C:\\44.189\\aworkflow\\applet\\py\\Reportwork\\Reportwork\\.venv\\Scripts\\*.exe"
+openclaw approvals allowlist add --node "<YOUR_NODE_NAME>" --agent "main" "<PYTHON_VENV_PATH>\\Scripts\\*.exe"
 
 # 添加 uv 授权
-openclaw approvals allowlist add --node "DESKTOP-58PJJ39" --agent "main" "C:\\Users\\moltsunx\\.local\\bin\\uv.exe"
+openclaw approvals allowlist add --node "<YOUR_NODE_NAME>" --agent "main" "<UV_PATH>\\uv.exe"
 ```
 
 ### 授权检查命令
@@ -55,7 +55,7 @@ openclaw approvals allowlist add --node "DESKTOP-58PJJ39" --agent "main" "C:\\Us
 openclaw nodes status
 
 # 测试命令执行
-openclaw nodes invoke --node "DESKTOP-58PJJ39" --command "system.run" --params '{"command": ["C:\\Windows\\system32\\whoami.exe"]}'
+openclaw nodes invoke --node "<YOUR_NODE_NAME>" --command "system.run" --params '{"command": ["C:\\Windows\\system32\\whoami.exe"]}'
 ```
 
 ## 环境变量
@@ -199,7 +199,7 @@ PuFaJiTuan-050100-04,8.98 M,80.51 GB,89.12 GB
 **解决**: 添加命令到 allowlist
 
 ```bash
-openclaw approvals allowlist add --node "DESKTOP-58PJJ39" --agent "main" "<命令路径>"
+openclaw approvals allowlist add --node "<YOUR_NODE_NAME>" --agent "main" "<命令路径>"
 ```
 
 ### 问题3: "gateway timeout"
@@ -229,5 +229,5 @@ openclaw approvals allowlist add --node "DESKTOP-58PJJ39" --agent "main" "<命�
 
 ## 相关文档
 
-- `/root/.openclaw/workspace/MEMORY.md` - Win10-Node 配置
-- `/root/.openclaw/agents/pfjtmr/workspace/` - Agent 工作空间
+- `{workspace}/MEMORY.md` - Win10-Node 配置
+- `{workspace}/` - Agent 工作空间
