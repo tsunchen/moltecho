@@ -108,7 +108,7 @@ else:
 ### 路径占位符
 
 脚本中的 `{workspace}` 会被自动替换为实际的工作目录：
-- Agent workspace: `/root/.openclaw/agents/{agent_name}/workspace`
+- Agent workspace: `{workspace}` (由 skill-creator 自动处理路径替换)
 - 上传到 ClawHub 后：由 skill-creator 自动处理
 
 ## 163邮箱IMAP安全检查（关键）
